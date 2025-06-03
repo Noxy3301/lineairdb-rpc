@@ -1,17 +1,35 @@
-# LineairDB MySQL Custom Storage Engine
+# LineairDB Remote Storage Engine for MySQL
 
-TBW.
+A MySQL storage engine that remotely communicates with LineairDB. Separating LineairDB into a standalone process enables multiple MySQL servers to share the same high-performance transaction engine.
 
-# How to Build
+## Quick Start
 
-```
-git clone --recursive git@github.com:Tatzhiro/LineairDB-storage-engine.git
-cd LineairDB-storage-engine
+```bash
+git clone --recursive https://github.com/Noxy3301/lineairdb-rpc.git
+cd lineairdb-rpc
 ./build.sh
 ```
 
-# Benchmark
+### Initialize and Start MySQL Server
 
-see [bench/README.md]
+```bash
+cd build
+./runtime_output_directory/mysqld --initialize-insecure --user=$USER --datadir=./data
+./runtime_output_directory/mysqld --datadir=./data --socket=/tmp/mysql.sock --port=3307 &
+```
 
-# How to Contribute
+### Connect to MySQL and Install LineairDB Plugin
+
+```bash
+./runtime_output_directory/mysql -u root --socket=/tmp/mysql.sock --port=3307
+```
+
+Then run the following SQL command:
+```sql
+INSTALL PLUGIN lineairdb SONAME 'ha_lineairdb_storage_engine.so';
+```
+
+## Important Notes
+
+> [!WARNING]
+> `/bench` and `/test` directories have not been verified to work with the current RPC implementation.
