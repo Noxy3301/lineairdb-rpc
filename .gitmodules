@@ -9,3 +9,4 @@ ignore = dirty
 [submodule "third_party/LineairDB"]
 path = third_party/LineairDB
 url = git@github.com:LineairDB/LineairDB.git
+ignore = dirty
