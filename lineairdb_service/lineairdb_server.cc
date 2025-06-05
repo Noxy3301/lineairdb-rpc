@@ -14,7 +14,7 @@
 
 LineairDBServer::LineairDBServer() :
     next_tx_id_(1) {
-    // initialize lineairdb
+    // Initialize lineairdb
     LineairDB::Config conf;
     conf.enable_checkpointing = false;
     conf.enable_recovery      = false;
@@ -40,14 +40,14 @@ bool LineairDBServer::key_prefix_is_matching(const std::string& key_prefix, cons
 void LineairDBServer::run() {
     std::cout << "Starting LineairDB service on port 9999" << std::endl;
     
-    // ソケット作成
+    // Create socket
     int server_socket = socket(AF_INET, SOCK_STREAM, 0);
     if (server_socket < 0) {
         std::cerr << "Failed to create socket" << std::endl;
         return;
     }
     
-    // SO_REUSEADDRオプション設定
+    // Set SO_REUSEADDR option
     int reuse = 1;
     if (setsockopt(server_socket, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse)) < 0) {
         std::cerr << "Failed to set SO_REUSEADDR" << std::endl;
@@ -60,14 +60,14 @@ void LineairDBServer::run() {
     server_addr.sin_addr.s_addr = INADDR_ANY;
     server_addr.sin_port = htons(9999);
 
-    // バインド
+    // Bind socket
     if (bind(server_socket, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
         std::cerr << "Failed to bind socket" << std::endl;
         close(server_socket);
         return;
     }
 
-    // リッスン
+    // Listen for connections
     if (listen(server_socket, 5) < 0) {
         std::cerr << "Failed to listen on socket" << std::endl;
         close(server_socket);
@@ -99,7 +99,7 @@ void LineairDBServer::handle_client(int client_socket) {
     std::cout << "Handling client connection..." << std::endl;
     
     while (true) {
-        // peek message header (similar to Raft implementation)
+        // Peek message header (similar to Raft implementation)
         MessageHeader header;
         ssize_t header_read = recv(client_socket, &header, sizeof(header), MSG_PEEK);
         if (header_read <= 0) {
@@ -117,7 +117,7 @@ void LineairDBServer::handle_client(int client_socket) {
             continue;
         }
 
-        // convert message header (network order -> host order)
+        // Convert message header (network order -> host order)
         uint64_t sender_id = be64toh(header.sender_id);
         MessageType message_type = static_cast<MessageType>(ntohl(header.message_type));
         uint32_t payload_size = ntohl(header.payload_size);
@@ -126,11 +126,11 @@ void LineairDBServer::handle_client(int client_socket) {
                   << ", message_type=" << static_cast<uint32_t>(message_type)
                   << ", payload_size=" << payload_size << std::endl;
 
-        // prepare buffer
+        // Prepare buffer
         size_t total_size = sizeof(header) + payload_size;
         std::vector<char> buffer(total_size);
 
-        // read message header and payload
+        // Read message header and payload
         ssize_t total_read = 0;
         while (total_read < total_size) {
             ssize_t bytes_read = recv(client_socket, buffer.data() + total_read, total_size - total_read, 0);
@@ -152,27 +152,27 @@ void LineairDBServer::handle_client(int client_socket) {
 
         std::cout << "Received complete message (" << total_size << " bytes)" << std::endl;
 
-        // handle RPC
+        // Handle RPC
         std::string payload(buffer.data() + sizeof(header), payload_size);
         std::string result = "";
         handleRPC(sender_id, message_type, payload, result);
         
-        // send response (空のレスポンスも送信する - protobufのデフォルト値対応)
+        // Send response (including empty responses)
         std::cout << "Sending response (" << result.size() << " bytes)" << std::endl;
         
-        // prepare response header
+        // Prepare response header
         MessageHeader response_header;
         response_header.sender_id = htobe64(0);  // server ID
         response_header.message_type = htonl(static_cast<uint32_t>(message_type));  // echo back message type
         response_header.payload_size = htonl(static_cast<uint32_t>(result.size()));
 
-        // combine header and response
+        // Combine header and response
         size_t response_total_size = sizeof(response_header) + result.size();
         std::vector<char> response_buffer(response_total_size);
         std::memcpy(response_buffer.data(), &response_header, sizeof(response_header));
         std::memcpy(response_buffer.data() + sizeof(response_header), result.c_str(), result.size());
 
-        // send response
+        // Send response
         ssize_t bytes_sent = send(client_socket, response_buffer.data(), response_total_size, 0);
         if (bytes_sent != static_cast<ssize_t>(response_total_size)) {
             std::cout << "Failed to send response" << std::endl;
@@ -225,7 +225,7 @@ void LineairDBServer::handleTxBeginTransaction(const std::string& message, std::
     
     request.ParseFromString(message);
     
-    // LineairDBで新しいトランザクションを開始
+    // Start new transaction
     auto& tx = database_->BeginTransaction();
     int64_t tx_id = generate_tx_id();
     transactions_[tx_id] = &tx;
@@ -322,7 +322,6 @@ void LineairDBServer::handleTxWrite(const std::string& message, std::string& res
     int64_t tx_id = request.transaction_id();
     auto* tx = get_transaction(tx_id);
     if (tx) {
-        // std::stringはtrivially copyableでないので、raw bytesに変換
         const std::string& value_str = request.value();
         tx->Write(request.key(), reinterpret_cast<const std::byte*>(value_str.c_str()), value_str.size());
         response.set_success(true);
@@ -352,15 +351,12 @@ void LineairDBServer::handleTxScan(const std::string& message, std::string& resu
         
         std::cout << "DEBUG SCAN: tx_id=" << tx_id << ", table_prefix='" << table_prefix 
                   << "', first_key_part='" << request.first_key_part() << "', key_prefix='" << key_prefix << "'" << std::endl;
-        
-        // 元のMySQL実装と同様に空文字列でフルスキャンしてフィルタリング
+
         tx->Scan("", std::nullopt, [&keys, &key_prefix, &table_prefix, this](const std::string_view key, const std::pair<const void*, const size_t>& value) {
             std::string key_str(key);
             std::cout << "DEBUG SCAN CALLBACK: checking key='" << key_str << "' against prefix='" << key_prefix << "'" << std::endl;
-            
-            // 元の実装のkey_prefix_is_matching関数を使用
+
             if (key_prefix_is_matching(key_prefix, key_str)) {
-                // 元の実装と同様にテーブルプレフィックスを除いた相対キーを返す
                 std::string relative_key = key_str.substr(table_prefix.size());
                 std::cout << "DEBUG SCAN CALLBACK: key matches, adding relative_key='" << relative_key << "'" << std::endl;
                 keys.push_back(relative_key);
@@ -412,7 +408,6 @@ void LineairDBServer::handleDbEndTransaction(const std::string& message, std::st
     auto* tx = get_transaction(tx_id);
     if (tx) {
         bool fence = request.fence();
-        // EndTransactionはCallbackTypeを要求するので、ラムダを渡す
         database_->EndTransaction(*tx, [fence, tx_id](LineairDB::TxStatus status) {
             std::cout << "Transaction " << tx_id << " ended with status: " << static_cast<int>(status) << ", fence=" << fence << std::endl;
         });
@@ -428,6 +423,6 @@ void LineairDBServer::handleDbEndTransaction(const std::string& message, std::st
 int main(int argc, char** argv) {
     std::cout << "Starting LineairDB server..." << std::endl;
     LineairDBServer server;
-    server.run();  // ここでリッスン開始
+    server.run();  // Start listening
     return 0;
 }
