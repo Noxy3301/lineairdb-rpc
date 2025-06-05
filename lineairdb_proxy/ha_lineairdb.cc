@@ -107,7 +107,7 @@
 #define BLOB_MEMROOT_ALLOC_SIZE (8192)
 #define FENCE true
 
-static std::shared_ptr<LineairDB::Database> get_or_allocate_database(LineairDB::Config conf);
+static std::shared_ptr<LineairDBClient> get_or_allocate_database();
 
 void terminate_tx(LineairDBTransaction*& tx);
 static int lineairdb_commit(handlerton *hton, THD *thd, bool shouldCommit);
@@ -201,21 +201,17 @@ static int lineairdb_init_func(void* p) {
   return 0;
 }
 
-static std::shared_ptr<LineairDB::Database> get_or_allocate_database(LineairDB::Config conf) {
-  static std::shared_ptr<LineairDB::Database> db;
+static std::shared_ptr<LineairDBClient> get_or_allocate_database() {
+  static std::shared_ptr<LineairDBClient> db;
   static std::once_flag flag;
-  std::call_once(flag, [&](){ db = std::make_shared<LineairDB::Database>(conf); });
+  std::call_once(flag, [&](){ db = std::make_shared<LineairDBClient>(); });
   return db;
 }
 
 LineairDB_share::LineairDB_share() {
   thr_lock_init(&lock);
-  if (lineairdb_ == nullptr) {
-    LineairDB::Config conf;
-    conf.enable_checkpointing = false;
-    conf.enable_recovery      = false;
-    conf.max_thread           = 1;
-    lineairdb_ = get_or_allocate_database(conf);
+  if (lineairdb_client_ == nullptr) {
+    lineairdb_client_ = get_or_allocate_database();
   }
 }
 
@@ -244,8 +240,8 @@ err:
   return tmp_share;
 }
 
-LineairDB::Database* ha_lineairdb::get_db() {
-  return get_share()->lineairdb_.get();
+LineairDBClient* ha_lineairdb::get_db_client() {
+  return get_share()->lineairdb_client_.get();
 }
 
 static PSI_memory_key csv_key_memory_blobroot;
@@ -724,7 +720,7 @@ int ha_lineairdb::start_stmt(THD *thd, thr_lock_type lock_type) {
 LineairDBTransaction*& ha_lineairdb::get_transaction(THD* thd) {
   LineairDBTransaction *&tx = *reinterpret_cast<LineairDBTransaction**>(thd_ha_data(thd, lineairdb_hton));
   if (tx == nullptr) {
-    tx = new LineairDBTransaction(thd, get_db(), lineairdb_hton, FENCE);
+    tx = new LineairDBTransaction(thd, get_db_client(), lineairdb_hton, FENCE);
   }
   return tx;
 }

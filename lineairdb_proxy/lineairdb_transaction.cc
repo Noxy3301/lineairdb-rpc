@@ -1,11 +1,11 @@
 #include "lineairdb_transaction.hh"
 
 LineairDBTransaction::LineairDBTransaction(THD* thd, 
-                                            LineairDB::Database* ldb, 
+                                            LineairDBClient* lineairdb_client,
                                             handlerton* lineairdb_hton,
                                             bool isFence) 
-    : tx(nullptr), 
-      db(ldb), 
+    : tx_id(-1), 
+      lineairdb_client(lineairdb_client),
       thread(thd), 
       isTransaction(false), 
       hton(lineairdb_hton),
@@ -28,25 +28,20 @@ bool LineairDBTransaction::table_is_not_chosen() {
 const std::pair<const std::byte *const, const size_t> 
 LineairDBTransaction::read(std::string key) {
   if (table_is_not_chosen()) return std::pair<const std::byte *const, const size_t>{nullptr, 0};
-  return tx->Read(db_table_key + key);
-}
+  std::string value = lineairdb_client->tx_read(tx_id, db_table_key + key);
+  if (value.empty()) return std::pair<const std::byte *const, const size_t>{nullptr, 0};
 
-bool LineairDBTransaction::key_prefix_is_matching(std::string key_prefix, std::string key) {
-  if (key.substr(0, key_prefix.size()) != key_prefix) return false;
-  return true;
+  // cache data to maintain pointer validity until transaction ends
+  read_cache_[key] = value;
+  const std::string& cached_data = read_cache_[key];
+  return {reinterpret_cast<const std::byte*>(cached_data.data()), cached_data.size()};
 }
 
 std::vector<std::string> 
 LineairDBTransaction::get_all_keys() {
   if (table_is_not_chosen()) return {};
 
-  std::vector<std::string> keyList;
-  tx->Scan("", std::nullopt, [&](auto key, auto) {
-    if (key_prefix_is_matching(db_table_key, std::string(key))) {
-      keyList.push_back(std::string(key.substr(db_table_key.size())));
-    }
-    return false;
-  });
+  std::vector<std::string> keyList = lineairdb_client->tx_scan(tx_id, db_table_key, "");
   return keyList;
 }
 
@@ -54,35 +49,35 @@ std::vector<std::string>
 LineairDBTransaction::get_matching_keys(std::string first_key_part) {
   if (table_is_not_chosen()) return {};
 
-  std::vector<std::string> keyList;
-  std::string key_prefix{db_table_key + first_key_part};
-
-  tx->Scan("", std::nullopt, [&](auto key, auto) {
-    if (key_prefix_is_matching(key_prefix, std::string(key))) {
-      keyList.push_back(std::string(key.substr(db_table_key.size())));
-    }
-    return false;
-  });
+  std::vector<std::string> keyList = lineairdb_client->tx_scan(tx_id, db_table_key, first_key_part);
   return keyList;
 }
 
 bool LineairDBTransaction::write(std::string key, const std::string value) {
   if (table_is_not_chosen()) return false;
-  tx->Write(db_table_key + key, reinterpret_cast<const std::byte*>(value.c_str()),
-          value.length());
-  return true;
+  return lineairdb_client->tx_write(tx_id, db_table_key + key, value);
 }
 
 bool LineairDBTransaction::delete_value(std::string key) {
   if (table_is_not_chosen()) return false;
-  tx->Write(db_table_key + key, nullptr, 0);
-  return true;
+  
+  // If key already starts with db_table_key, don't add it again
+  std::string full_key;
+  if (key.find(db_table_key) == 0) {
+    full_key = key;  // key is already a full key
+  } else {
+    full_key = db_table_key + key;  // key needs db_table_key prefix
+  }
+  
+  return lineairdb_client->tx_write(tx_id, full_key, "");
 }
 
 
 void LineairDBTransaction::begin_transaction() {
   assert(is_not_started());
-  tx = &db->BeginTransaction();
+  tx_id = lineairdb_client->tx_begin_transaction();
+  // TODO: maybe need error handling when tx_id == -1
+  assert(tx_id != -1);
 
   if (thd_is_transaction()) {
     isTransaction = true;
@@ -94,17 +89,17 @@ void LineairDBTransaction::begin_transaction() {
 }
 
 void LineairDBTransaction::set_status_to_abort() {
-  tx->Abort();
+  lineairdb_client->tx_abort(tx_id);
 }
 
 void LineairDBTransaction::end_transaction() {
-  assert(tx != nullptr);
-  db->EndTransaction(*tx, [&](auto) {}); 
-  if (isFence) fence();
+  assert(tx_id != -1);
+  lineairdb_client->db_end_transaction(tx_id, isFence);
+  if (isFence) lineairdb_client->db_fence();
   delete this;
 }
 
-void LineairDBTransaction::fence() const { db->Fence(); }
+void LineairDBTransaction::fence() const { lineairdb_client->db_fence(); }
 
 
 

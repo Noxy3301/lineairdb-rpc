@@ -22,18 +22,33 @@
 
 set(CMAKE_CXX_STANDARD 17)
 
-add_subdirectory(third_party/LineairDB)
+# Use MySQL-defined cmake configuration for protobuf
+INCLUDE(${CMAKE_SOURCE_DIR}/cmake/protobuf.cmake)
+
+# Generate protobuf library
+set(PROTO_DIR "${CMAKE_CURRENT_SOURCE_DIR}/proto")
+MYSQL_PROTOBUF_GENERATE_CPP_LIBRARY(
+  lineairdb_proto
+  ${PROTO_DIR}/lineairdb.proto)
+
+# Add include path for generated protobuf header files
+include_directories(${CMAKE_CURRENT_BINARY_DIR})
+
+# Add LineairDB subdirectory
+set(LINEAIRDB_DIR "${CMAKE_CURRENT_SOURCE_DIR}/third_party/LineairDB")
+add_subdirectory(${LINEAIRDB_DIR} ${CMAKE_CURRENT_BINARY_DIR}/LineairDB)
 set(LINEAIRDB_PLUGIN_DYNAMIC "ha_lineairdb")
 set(LINEAIRDB_SOURCES ha_lineairdb.cc ha_lineairdb.hh 
                       lineairdb_field.cc lineairdb_field.hh
-                      lineairdb_transaction.cc lineairdb_transaction.hh)
+                      lineairdb_transaction.cc lineairdb_transaction.hh
+                      lineairdb_client.cc lineairdb_client.hh)
 add_definitions(-DMYSQL_SERVER)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-error -Wextra -mcx16 -fPIC")
 
 if(WITH_LINEAIRDB_STORAGE_ENGINE AND NOT WITHOUT_LINEAIRDB_STORAGE_ENGINE)
   mysql_add_plugin(lineairdb_storage_engine ${LINEAIRDB_SOURCES} STORAGE_ENGINE
-                   DEFAULT LINK_LIBRARIES linearidb::lineairdb)
+                   DEFAULT LINK_LIBRARIES lineairdb::lineairdb lineairdb_proto ext::libprotobuf)
 elseif(NOT WITHOUT_LINEAIRDB_STORAGE_ENGINE)
   mysql_add_plugin(lineairdb_storage_engine ${LINEAIRDB_SOURCES} STORAGE_ENGINE
-                   MODULE_ONLY LINK_LIBRARIES lineairdb::lineairdb)
+                   MODULE_ONLY LINK_LIBRARIES lineairdb::lineairdb lineairdb_proto ext::libprotobuf)
 endif()

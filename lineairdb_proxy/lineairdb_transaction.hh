@@ -1,7 +1,9 @@
-#include <lineairdb/lineairdb.h>
+#include <unordered_map>
+
 #include "sql/handler.h" /* handler */
 #include "mysql/plugin.h"
 #include "sql/sql_class.h"
+#include "lineairdb_client.hh"
 
 /**
  * @brief 
@@ -34,30 +36,33 @@ public:
   
 
   inline bool is_not_started() const {
-    if (tx == nullptr) return true;
+    if (tx_id == -1) return true;
     return false;
   }
   inline bool is_aborted() const {
-    assert(tx != nullptr);
-    return tx->IsAborted();
+    assert(tx_id != -1);
+    return lineairdb_client->tx_is_aborted(tx_id);
   }
   inline bool is_a_single_statement() const { return !isTransaction; }
 
 
   LineairDBTransaction(THD* thd, 
-                       LineairDB::Database* ldb, 
+                       LineairDBClient* lineairdb_client, 
                        handlerton* lineairdb_hton,
                        bool isFence);
   ~LineairDBTransaction() = default;
 
 private:
-  LineairDB::Transaction* tx;
-  LineairDB::Database* db;
+  int64_t tx_id;  // transaction id (instead of tx pointer), -1 means tx is not started
+  LineairDBClient* lineairdb_client;
   std::string db_table_key;
   THD* thread;
   bool isTransaction;
   handlerton* hton;
   bool isFence;
+
+  // temporary buffer to maintain pointer validity for RPC read results until transaction ends
+  std::unordered_map<std::string, std::string> read_cache_;
 
   bool key_prefix_is_matching(std::string target_key, std::string key);
   bool thd_is_transaction() const;
