@@ -27,7 +27,7 @@ cd build
 ### Connect to MySQL and Install LineairDB Plugin
 
 ```bash
-./runtime_output_directory/mysql -u root --socket=/tmp/mysql.sock --port=3307
+./build/runtime_output_directory/mysql -u root --socket=/tmp/mysql.sock --port=3307
 ```
 
 Then run the following SQL command:
