@@ -419,10 +419,3 @@ void LineairDBServer::handleDbEndTransaction(const std::string& message, std::st
     
     result = response.SerializeAsString();
 }
-
-int main(int argc, char** argv) {
-    std::cout << "Starting LineairDB server..." << std::endl;
-    LineairDBServer server;
-    server.run();  // Start listening
-    return 0;
-}

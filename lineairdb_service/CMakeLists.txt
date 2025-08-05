@@ -40,6 +40,7 @@ add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/raft ${CMAKE_CURRENT_BINARY_DIR}/ra
 
 # Source files
 set(SOURCES
+    main.cc
     lineairdb_server.cc
     lineairdb_server.hh
     ${PROTO_SRCS}
