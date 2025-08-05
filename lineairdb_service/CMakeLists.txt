@@ -35,6 +35,9 @@ add_custom_command(
 # Add LineairDB as subdirectory
 add_subdirectory(${LINEAIRDB_ROOT} ${CMAKE_CURRENT_BINARY_DIR}/LineairDB)
 
+# Add Raft as subdirectory
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/raft ${CMAKE_CURRENT_BINARY_DIR}/raft)
+
 # Source files
 set(SOURCES
     lineairdb_server.cc
@@ -48,6 +51,7 @@ add_executable(lineairdb-service ${SOURCES})
 # Link libraries
 target_link_libraries(lineairdb-service
     lineairdb
+    raft_core
     ${Protobuf_LIBRARIES}
     gflags
     pthread
