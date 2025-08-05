@@ -7,6 +7,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # Find required packages
 find_package(Protobuf REQUIRED)
 find_package(PkgConfig REQUIRED)
+find_package(gflags REQUIRED)
 
 # LineairDB library path
 set(LINEAIRDB_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../third_party/LineairDB")
@@ -48,6 +49,7 @@ add_executable(lineairdb-service ${SOURCES})
 target_link_libraries(lineairdb-service
     lineairdb
     ${Protobuf_LIBRARIES}
+    gflags
     pthread
 )
 
