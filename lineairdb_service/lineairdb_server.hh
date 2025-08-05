@@ -9,6 +9,7 @@
 
 #include "lineairdb/lineairdb.h"
 #include "lineairdb.pb.h"
+#include "raft/raft.h"
 
 // Message header for RPC communication
 struct MessageHeader {
@@ -35,12 +36,18 @@ public:
     LineairDBServer();
     ~LineairDBServer() = default;
 
+    void init_lineairdb(const LineairDB::Config& config);
+    void init_raft(const Raft::Options& raft_options);
     void run();
 
 private:
+    // LineairDB
     std::shared_ptr<LineairDB::Database> database_;
     std::unordered_map<int64_t, LineairDB::Transaction*> transactions_;
     std::atomic<int64_t> next_tx_id_;
+
+    // Raft
+    std::unique_ptr<Raft::RaftNode> raft_node_;
 
     inline int64_t generate_tx_id() { return next_tx_id_.fetch_add(1); }
     LineairDB::Transaction* get_transaction(int64_t tx_id);
@@ -48,7 +55,7 @@ private:
     void handle_client(int client_socket);
     void handleRPC(uint64_t sender_id, MessageType message_type, const std::string& message, std::string& result);
     
-    // RPC handlers (Raft pattern)
+    // RPC handlers
     void handleTxBeginTransaction(const std::string& message, std::string& result);
     void handleTxAbort(const std::string& message, std::string& result);
     void handleTxIsAborted(const std::string& message, std::string& result);

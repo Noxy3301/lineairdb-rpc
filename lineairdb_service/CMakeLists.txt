@@ -7,6 +7,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # Find required packages
 find_package(Protobuf REQUIRED)
 find_package(PkgConfig REQUIRED)
+find_package(gflags REQUIRED)
 
 # LineairDB library path
 set(LINEAIRDB_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../third_party/LineairDB")
@@ -34,8 +35,12 @@ add_custom_command(
 # Add LineairDB as subdirectory
 add_subdirectory(${LINEAIRDB_ROOT} ${CMAKE_CURRENT_BINARY_DIR}/LineairDB)
 
+# Add Raft as subdirectory
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/raft ${CMAKE_CURRENT_BINARY_DIR}/raft)
+
 # Source files
 set(SOURCES
+    main.cc
     lineairdb_server.cc
     lineairdb_server.hh
     ${PROTO_SRCS}
@@ -47,7 +52,9 @@ add_executable(lineairdb-service ${SOURCES})
 # Link libraries
 target_link_libraries(lineairdb-service
     lineairdb
+    raft_core
     ${Protobuf_LIBRARIES}
+    gflags
     pthread
 )
 
