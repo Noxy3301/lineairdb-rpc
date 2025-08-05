@@ -12,15 +12,20 @@
 #include "lineairdb_server.hh"
 #include "lineairdb.pb.h"
 
-LineairDBServer::LineairDBServer() :
-    next_tx_id_(1) {
-    // Initialize lineairdb
-    LineairDB::Config conf;
-    conf.enable_checkpointing = false;
-    conf.enable_recovery      = false;
-    conf.max_thread           = 1;  // TODO: multi threading?
-    database_ = std::make_shared<LineairDB::Database>(conf);
-    std::cout << "Server initialized with database config" << std::endl;
+LineairDBServer::LineairDBServer() : next_tx_id_(1) {}
+
+void LineairDBServer::init_lineairdb(const LineairDB::Config& config) {
+    database_ = std::make_shared<LineairDB::Database>(config);
+    std::cout << "LineairDB initialized" << std::endl;
+}
+
+void LineairDBServer::init_raft(const Raft::Options& raft_options) {
+    raft_node_ = std::make_unique<Raft::RaftNode>(raft_options);
+    raft_node_->init();
+    
+    std::cout << "Raft node initialized (ip=" << raft_options.ip 
+              << ", port=" << raft_options.port 
+              << ", peers=" << raft_options.peers << ")" << std::endl;
 }
 
 LineairDB::Transaction* LineairDBServer::get_transaction(int64_t tx_id) {
@@ -216,7 +221,6 @@ void LineairDBServer::handleRPC(uint64_t sender_id, MessageType message_type, co
             return;
     }
 }
-
 void LineairDBServer::handleTxBeginTransaction(const std::string& message, std::string& result) {
     std::cout << "Handling TxBeginTransaction" << std::endl;
     
