@@ -1,5 +1,8 @@
 # LineairDB Remote Storage Engine for MySQL
 
+> [!NOTE]
+> This repository was originally forked from [Tatzhiro/LineairDB-storage-engine](https://github.com/Tatzhiro/LineairDB-storage-engine) but has been re-imported to become an independent project.
+
 A MySQL storage engine that remotely communicates with LineairDB. Separating LineairDB into a standalone process enables multiple MySQL servers to share the same high-performance transaction engine.
 
 ## Quick Start
